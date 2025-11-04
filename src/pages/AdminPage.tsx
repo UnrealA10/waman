@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import AdminStats from "@/components/admin/AdminStats";
-import ProductManager from "@/components/admin/ProductManager";
+import ProductManager from "@/pages/ProductManager";
 
 const AdminPage = () => {
   const [stats, setStats] = useState({
@@ -26,6 +26,7 @@ const AdminPage = () => {
 
   useEffect(() => {
     fetchAdminData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAdminData = async () => {
@@ -34,28 +35,40 @@ const AdminPage = () => {
         .from("orders")
         .select("*")
         .order("created_at", { ascending: false });
+
       const { data: productsData } = await supabase
         .from("products")
         .select("*")
         .order("created_at", { ascending: false });
+
       const { data: usersData } = await supabase
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
 
-      setOrders(ordersData || []);
-      setProducts(productsData || []);
-      setUsers(usersData || []);
+      setOrders(Array.isArray(ordersData) ? ordersData : []);
+      setProducts(Array.isArray(productsData) ? productsData : []);
+      setUsers(Array.isArray(usersData) ? usersData : []);
+
       const totalRevenue =
-        ordersData?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
+        (Array.isArray(ordersData)
+          ? ordersData.reduce(
+              (sum: number, o: any) => sum + (o.total_amount || 0),
+              0
+            )
+          : 0) || 0;
+
       setStats({
         totalRevenue,
-        totalOrders: ordersData?.length || 0,
-        totalProducts: productsData?.length || 0,
-        totalUsers: usersData?.length || 0,
+        totalOrders: Array.isArray(ordersData) ? ordersData.length : 0,
+        totalProducts: Array.isArray(productsData) ? productsData.length : 0,
+        totalUsers: Array.isArray(usersData) ? usersData.length : 0,
       });
     } catch (error) {
       console.error("Error fetching admin data:", error);
+      setOrders([]);
+      setProducts([]);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -76,9 +89,7 @@ const AdminPage = () => {
         .from("orders")
         .update({ status: newStatus })
         .eq("id", orderId);
-
       if (error) throw error;
-
       fetchAdminData();
     } catch (error) {
       console.error("Error updating order status:", error);
@@ -168,27 +179,36 @@ const AdminPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {orders.slice(0, 5).map((order) => (
-                      <div
-                        key={order.id}
-                        className="flex items-center justify-between p-3 border rounded"
-                      >
-                        <div>
-                          <p className="font-medium">#{order.id.slice(0, 8)}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {format(new Date(order.created_at), "MMM dd, yyyy")}
-                          </p>
+                    {(Array.isArray(orders) ? orders : [])
+                      .slice(0, 5)
+                      .map((order) => (
+                        <div
+                          key={order.id}
+                          className="flex items-center justify-between p-3 border rounded"
+                        >
+                          <div>
+                            <p className="font-medium">
+                              #{String(order.id).slice(0, 8)}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {order.created_at
+                                ? format(
+                                    new Date(order.created_at),
+                                    "MMM dd, yyyy"
+                                  )
+                                : "--"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <Badge className={getStatusColor(order.status)}>
+                              {order.status}
+                            </Badge>
+                            <p className="text-sm font-medium">
+                              ₹{(order.total_amount || 0).toFixed(2)}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <Badge className={getStatusColor(order.status)}>
-                            {order.status}
-                          </Badge>
-                          <p className="text-sm font-medium">
-                            ₹{order.total_amount.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </CardContent>
               </Card>
@@ -199,34 +219,37 @@ const AdminPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {products.slice(0, 5).map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex items-center gap-3 p-3 border rounded"
-                      >
-                        <div className="w-12 h-12 bg-muted rounded overflow-hidden">
-                          {product.images && product.images.length > 0 ? (
-                            <img
-                              src={product.images[0]}
-                              alt={product.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-xs">
-                              No Image
-                            </div>
-                          )}
+                    {(Array.isArray(products) ? products : [])
+                      .slice(0, 5)
+                      .map((product) => (
+                        <div
+                          key={product.id}
+                          className="flex items-center gap-3 p-3 border rounded"
+                        >
+                          <div className="w-12 h-12 bg-muted rounded overflow-hidden">
+                            {Array.isArray(product.images) &&
+                            product.images.length > 0 ? (
+                              <img
+                                src={product.images[0]}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-xs">
+                                No Image
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-medium line-clamp-1">
+                              {product.name}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              ₹{product.price} • Stock: {product.stock_quantity}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <p className="font-medium line-clamp-1">
-                            {product.name}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            ₹{product.price} • Stock: {product.stock_quantity}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 </CardContent>
               </Card>
@@ -240,18 +263,20 @@ const AdminPage = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {orders.map((order) => (
+                  {(Array.isArray(orders) ? orders : []).map((order) => (
                     <div key={order.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div>
                           <p className="font-medium">
-                            Order #{order.id.slice(0, 8)}
+                            Order #{String(order.id).slice(0, 8)}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {format(
-                              new Date(order.created_at),
-                              "MMM dd, yyyy HH:mm"
-                            )}
+                            {order.created_at
+                              ? format(
+                                  new Date(order.created_at),
+                                  "MMM dd, yyyy HH:mm"
+                                )
+                              : "--"}
                           </p>
                         </div>
                         <div className="text-right">
@@ -259,10 +284,10 @@ const AdminPage = () => {
                             {order.status}
                           </Badge>
                           <p className="text-sm font-medium mt-1">
-                            ₹{order.total_amount.toFixed(2)}
+                            ₹{(order.total_amount || 0).toFixed(2)}
                           </p>
                         </div>
-</div>
+                      </div>
 
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
@@ -282,11 +307,11 @@ const AdminPage = () => {
                         <div>
                           <p>
                             <strong>Customer:</strong>{" "}
-                            {order.shipping_address?.fullName}
+                            {order.shipping_address?.fullName || "--"}
                           </p>
                           <p>
                             <strong>Phone:</strong>{" "}
-                            {order.shipping_address?.phone}
+                            {order.shipping_address?.phone || "--"}
                           </p>
                         </div>
                       </div>
@@ -359,7 +384,7 @@ const AdminPage = () => {
               </CardHeader>
               <CardContent>
                 <ProductManager
-                  products={products}
+                  products={Array.isArray(products) ? products : []}
                   onProductsChange={fetchAdminData}
                 />
               </CardContent>
@@ -373,32 +398,32 @@ const AdminPage = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {users.map((user) => (
+                  {(Array.isArray(users) ? users : []).map((u) => (
                     <div
-                      key={user.id}
+                      key={u.id}
                       className="flex items-center justify-between p-4 border rounded"
                     >
                       <div>
                         <p className="font-medium">
-                          {user.full_name || "No Name"}
+                          {u.full_name || "No Name"}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          {user.phone || "No Phone"}
+                          {u.phone || "No Phone"}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           Joined:{" "}
-                          {format(new Date(user.created_at), "MMM dd, yyyy")}
+                          {u.created_at
+                            ? format(new Date(u.created_at), "MMM dd, yyyy")
+                            : "--"}
                         </p>
                       </div>
                       <div className="text-right">
                         <Badge variant="outline" className="capitalize">
-                          {user.role || "customer"}
+                          {u.role || "customer"}
                         </Badge>
                         <p className="text-xs text-muted-foreground mt-1">
                           Wishlist:{" "}
-                          {Array.isArray(user.wishlist)
-                            ? user.wishlist.length
-                            : 0}{" "}
+                          {Array.isArray(u.wishlist) ? u.wishlist.length : 0}{" "}
                           items
                         </p>
                       </div>

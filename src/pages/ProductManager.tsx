@@ -1,5 +1,5 @@
 // src/components/admin/ProductManager.tsx
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +23,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-// --- MODIFICATION START ---
-// 1. Import components for the Select dropdown
 import {
   Select,
   SelectContent,
@@ -32,12 +30,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-// --- MODIFICATION END ---
 import { toast } from "sonner";
-import { PlusCircle, Edit, Trash2 } from "lucide-react";
+import { PlusCircle, Edit, Trash2, UploadCloud, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
-// --- MODIFICATION START ---
-// 2. Update the Product interface with new fields
+type StringArray = string[] | null | undefined;
+
 interface Product {
   id?: string;
   name: string;
@@ -46,234 +44,285 @@ interface Product {
   stock_quantity: number;
   category: string;
   images: string[];
-  brand?: string;
-  material?: string;
-  occasion?: string;
+  is_active?: boolean;
+  sizes?: string[];
+  colors?: string[];
+  tags?: string[];
   created_at?: string;
 }
-// --- MODIFICATION END ---
 
 interface ProductManagerProps {
   products: Product[];
   onProductsChange: () => void;
 }
 
-const ProductManager: React.FC<ProductManagerProps> = ({
+const BUCKET = "products";
+const toStrArr = (v: StringArray) =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+const CATS = [
+  "Top (Men)",
+  "Bottom (Men)",
+  "Suits (Women)",
+  "Dresses (Women)",
+  "Collections",
+  "New",
+];
+
+export default function ProductManager({
   products,
   onProductsChange,
-}) => {
+}: ProductManagerProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-  const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [current, setCurrent] = useState<Product | null>(null);
+  const [toDelete, setToDelete] = useState<Product | null>(null);
+  const [picked, setPicked] = useState<File[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uid, setUid] = useState<string | null>(null);
 
-  // --- MODIFICATION START ---
-  // 3. Update the default product state and define category list
-  const defaultProduct: Product = {
-    name: "",
-    description: "",
-    price: 0,
-    stock_quantity: 0,
-    category: "",
-    images: [],
-    brand: "",
-    material: "",
-    occasion: "",
-  };
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
+  }, []);
 
-  const productCategories = [
-    "dresses (Men)",
-    "top (Men)",
-    "bottom (Men)",
-    "Kurtis for Women",
-    "Western (Women)",
-    "Indian Dresses (Women)",
-  ];
-  // --- MODIFICATION END ---
+  const empty: Product = useMemo(
+    () => ({
+      name: "",
+      description: "",
+      price: 0,
+      stock_quantity: 0,
+      category: "",
+      images: [],
+      is_active: true,
+      sizes: [],
+      colors: [],
+      tags: [],
+    }),
+    []
+  );
 
-  const handleAddNew = () => {
-    setCurrentProduct(defaultProduct);
-    setImageFiles([]);
+  const openAdd = () => {
+    setCurrent(empty);
+    setPicked([]);
     setIsDialogOpen(true);
   };
-
-  const handleEdit = (product: Product) => {
-    setCurrentProduct(product);
-    setImageFiles([]);
+  const openEdit = (p: Product) => {
+    setCurrent({
+      ...p,
+      images: toStrArr(p.images),
+      sizes: toStrArr(p.sizes),
+      colors: toStrArr(p.colors),
+      tags: toStrArr(p.tags),
+      is_active: p.is_active ?? true,
+    });
+    setPicked([]);
     setIsDialogOpen(true);
   };
-
-  const handleDeleteClick = (product: Product) => {
-    setProductToDelete(product);
-    setIsDeleteDialogOpen(true);
+  const openDelete = (p: Product) => {
+    setToDelete(p);
+    setIsDeleteOpen(true);
   };
 
-  const handleFormChange = (
+  const onField = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
+    if (!current) return;
     const { name, value } = e.target;
-    if (currentProduct) {
-      setCurrentProduct({
-        ...currentProduct,
-        [name]:
-          name === "price" || name === "stock_quantity"
-            ? parseFloat(value) || 0
-            : value,
-      });
-    }
+    if (name === "price")
+      setCurrent({ ...current, price: parseFloat(value) || 0 });
+    else if (name === "stock_quantity")
+      setCurrent({ ...current, stock_quantity: Number(value) || 0 });
+    else setCurrent({ ...current, [name]: value });
   };
+  const onSelect = (k: keyof Product, v: string) =>
+    current && setCurrent({ ...current, [k]: v });
+  const onActive = (checked: boolean) =>
+    current && setCurrent({ ...current, is_active: checked });
 
-  // --- MODIFICATION START ---
-  // 4. Add a specific handler for Select components
-  const handleSelectChange = (name: string, value: string) => {
-    if (currentProduct) {
-      setCurrentProduct({
-        ...currentProduct,
-        [name]: value,
-      });
-    }
+  // files
+  const addFiles = (arr: File[]) => {
+    const ok = [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/jpg",
+      "image/gif",
+    ];
+    const keep = arr.filter((f) => ok.includes(f.type));
+    const key = new Set(picked.map((f) => `${f.name}-${f.size}`));
+    setPicked((prev) => [
+      ...prev,
+      ...keep.filter((f) => !key.has(`${f.name}-${f.size}`)),
+    ]);
   };
-  // --- MODIFICATION END ---
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setImageFiles(Array.from(e.target.files));
-    }
-  };
-
-  const uploadImages = async (): Promise<string[]> => {
-    const imageUrls: string[] = [];
-    for (const file of imageFiles) {
-      const fileName = `${Date.now()}-${file.name}`;
-      const { data, error } = await supabase.storage
-        .from("product-images")
-        .upload(fileName, file);
-
-      if (error) {
-        throw new Error(`Image upload failed: ${error.message}`);
-      }
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("product-images").getPublicUrl(data.path);
-      imageUrls.push(publicUrl);
-    }
-    return imageUrls;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) =>
+    e.target.files && addFiles(Array.from(e.target.files));
+  const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!currentProduct) return;
-    setIsSubmitting(true);
+    setDragOver(false);
+    addFiles(Array.from(e.dataTransfer.files || []));
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+  };
+  const removePicked = (f: File) =>
+    setPicked((prev) =>
+      prev.filter((x) => !(x.name === f.name && x.size === f.size))
+    );
 
+  const uploadPicked = async (): Promise<string[]> => {
+    if (!picked.length) return [];
+    const folder = uid ?? "public";
+    const out: string[] = [];
+    for (const file of picked) {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${folder}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2)}.${ext}`;
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file, {
+          upsert: false,
+          cacheControl: "3600",
+          contentType: file.type,
+        });
+      if (error) throw new Error(error.message);
+      const { data: pub } = supabase.storage
+        .from(BUCKET)
+        .getPublicUrl(data.path);
+      out.push(pub.publicUrl);
+    }
+    return out;
+  };
+
+  const validate = (p: Product) => {
+    if (!p.name.trim()) throw new Error("Name required");
+    if (!p.category) throw new Error("Category required");
+    if (!Number.isFinite(p.price) || p.price < 0)
+      throw new Error("Invalid price");
+    if (!Number.isInteger(p.stock_quantity) || p.stock_quantity < 0)
+      throw new Error("Invalid stock");
+  };
+
+  const resetDialog = () => {
+    setIsDialogOpen(false);
+    setCurrent(null);
+    setPicked([]);
+    setDragOver(false);
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!current) return;
     try {
-      const newImageUrls = await uploadImages();
-      const updatedImages = [...(currentProduct.images || []), ...newImageUrls];
+      setSaving(true);
+      validate(current);
+      const uploaded = await uploadPicked();
+      const images = [...toStrArr(current.images), ...uploaded];
 
-      // Ensure all fields are included, even if empty
-      const productData = {
-        name: currentProduct.name,
-        description: currentProduct.description,
-        price: currentProduct.price,
-        stock_quantity: currentProduct.stock_quantity,
-        category: currentProduct.category,
-        images: updatedImages,
-        brand: currentProduct.brand,
-        material: currentProduct.material,
-        occasion: currentProduct.occasion,
+      const payload: Product = {
+        name: current.name.trim(),
+        description: current.description?.trim() || "",
+        price: Number(current.price),
+        stock_quantity: Number(current.stock_quantity),
+        category: current.category,
+        images,
+        is_active: current.is_active ?? true,
+        sizes: toStrArr(current.sizes),
+        colors: toStrArr(current.colors),
+        tags: toStrArr(current.tags),
       };
 
-      let error;
-      if (currentProduct.id) {
-        const { error: updateError } = await supabase
+      if (current.id) {
+        const { error } = await supabase
           .from("products")
-          .update(productData)
-          .eq("id", currentProduct.id);
-        error = updateError;
+          .update(payload)
+          .eq("id", current.id);
+        if (error) throw error;
+        toast.success("Product updated");
       } else {
-        const { error: insertError } = await supabase
-          .from("products")
-          .insert(productData);
-        error = insertError;
+        const { error } = await supabase.from("products").insert(payload);
+        if (error) throw error;
+        toast.success("Product added");
       }
-
-      if (error) throw error;
-
-      toast.success(
-        `Product ${currentProduct.id ? "updated" : "added"} successfully!`
-      );
       onProductsChange();
-      setIsDialogOpen(false);
-    } catch (error: any) {
-      toast.error(`Error: ${error.message}`);
+      resetDialog();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Failed to save");
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!productToDelete || !productToDelete.id) return;
-
+  const confirmDelete = async () => {
+    if (!toDelete?.id) return;
     try {
       const { error } = await supabase
         .from("products")
         .delete()
-        .eq("id", productToDelete.id);
+        .eq("id", toDelete.id);
       if (error) throw error;
-
-      toast.success("Product deleted successfully!");
+      toast.success("Product deleted");
       onProductsChange();
-      setIsDeleteDialogOpen(false);
-    } catch (error: any) {
-      toast.error(`Error deleting product: ${error.message}`);
+      setIsDeleteOpen(false);
+      setToDelete(null);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err?.message || "Delete failed");
     }
   };
 
   return (
     <div>
       <div className="flex justify-end mb-4">
-        <Button onClick={handleAddNew}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add New Product
+        <Button onClick={openAdd}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Add New Product
         </Button>
       </div>
 
       <div className="space-y-4">
-        {products.map((product) => (
+        {products.map((p) => (
           <div
-            key={product.id}
+            key={p.id}
             className="flex items-center justify-between p-4 border rounded-lg"
           >
             <div className="flex items-center gap-4">
               <img
-                src={product.images?.[0] || "https://via.placeholder.com/64"}
-                alt={product.name}
+                src={p.images?.[0] || "https://via.placeholder.com/64"}
+                alt={p.name}
                 className="w-16 h-16 object-cover rounded-md bg-muted"
               />
               <div>
-                <p className="font-semibold">{product.name}</p>
-                {/* --- MODIFICATION START --- */}
-                {/* 5. Display category in the list view */}
+                <p className="font-semibold">{p.name}</p>
                 <p className="text-sm text-muted-foreground">
-                  {product.category} • ₹{product.price.toFixed(2)} • Stock:{" "}
-                  {product.stock_quantity}
+                  {p.category} • ₹{Number(p.price).toFixed(2)} • Stock:{" "}
+                  {p.stock_quantity}
                 </p>
-                {/* --- MODIFICATION END --- */}
+                <p className="text-xs mt-1">
+                  Status:{" "}
+                  <span
+                    className={p.is_active ? "text-green-600" : "text-red-600"}
+                  >
+                    {p.is_active ? "Active" : "Inactive"}
+                  </span>
+                </p>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => handleEdit(product)}
-              >
+              <Button variant="outline" size="icon" onClick={() => openEdit(p)}>
                 <Edit className="h-4 w-4" />
               </Button>
               <Button
                 variant="destructive"
                 size="icon"
-                onClick={() => handleDeleteClick(product)}
+                onClick={() => openDelete(p)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -282,19 +331,21 @@ const ProductManager: React.FC<ProductManagerProps> = ({
         ))}
       </div>
 
-      {/* Add/Edit Product Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+      <Dialog
+        open={isDialogOpen}
+        onOpenChange={(o) => (o ? setIsDialogOpen(true) : resetDialog())}
+      >
+        <DialogContent className="sm:max-w-[560px]">
           <DialogHeader>
             <DialogTitle>
-              {currentProduct?.id ? "Edit Product" : "Add New Product"}
+              {current?.id ? "Edit Product" : "Add New Product"}
             </DialogTitle>
           </DialogHeader>
-          {currentProduct && (
-            <form onSubmit={handleSubmit}>
+
+          {current && (
+            <form onSubmit={onSubmit}>
               <div className="grid gap-4 py-4">
-                {/* --- MODIFICATION START --- */}
-                {/* 6. Updated form with new fields and Select component */}
+                {/* Name */}
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="name" className="text-right">
                     Name
@@ -302,12 +353,14 @@ const ProductManager: React.FC<ProductManagerProps> = ({
                   <Input
                     id="name"
                     name="name"
-                    value={currentProduct.name}
-                    onChange={handleFormChange}
+                    value={current.name}
+                    onChange={onField}
                     className="col-span-3"
                     required
                   />
                 </div>
+
+                {/* Description */}
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="description" className="text-right">
                     Description
@@ -315,11 +368,13 @@ const ProductManager: React.FC<ProductManagerProps> = ({
                   <Textarea
                     id="description"
                     name="description"
-                    value={currentProduct.description}
-                    onChange={handleFormChange}
+                    value={current.description}
+                    onChange={onField}
                     className="col-span-3"
                   />
                 </div>
+
+                {/* Price */}
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="price" className="text-right">
                     Price
@@ -329,12 +384,14 @@ const ProductManager: React.FC<ProductManagerProps> = ({
                     name="price"
                     type="number"
                     step="0.01"
-                    value={currentProduct.price}
-                    onChange={handleFormChange}
+                    value={current.price}
+                    onChange={onField}
                     className="col-span-3"
                     required
                   />
                 </div>
+
+                {/* Stock */}
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="stock_quantity" className="text-right">
                     Stock
@@ -343,94 +400,136 @@ const ProductManager: React.FC<ProductManagerProps> = ({
                     id="stock_quantity"
                     name="stock_quantity"
                     type="number"
-                    value={currentProduct.stock_quantity}
-                    onChange={handleFormChange}
+                    value={current.stock_quantity}
+                    onChange={onField}
                     className="col-span-3"
                     required
                   />
                 </div>
+
+                {/* Category */}
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="category" className="text-right">
                     Category
                   </Label>
                   <Select
-                    name="category"
-                    value={currentProduct.category}
-                    onValueChange={(value) =>
-                      handleSelectChange("category", value)
-                    }
+                    value={current.category}
+                    onValueChange={(v) => onSelect("category", v)}
                     required
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select a category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {productCategories.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
+                      {CATS.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Active */}
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="brand" className="text-right">
-                    Brand
-                  </Label>
-                  <Input
-                    id="brand"
-                    name="brand"
-                    value={currentProduct.brand || ""}
-                    onChange={handleFormChange}
-                    className="col-span-3"
-                  />
+                  <Label className="text-right">Active</Label>
+                  <div className="col-span-3 flex items-center gap-3">
+                    <Switch
+                      checked={current.is_active ?? true}
+                      onCheckedChange={onActive}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {current.is_active
+                        ? "Visible in store"
+                        : "Hidden from store"}
+                    </span>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="material" className="text-right">
-                    Material
-                  </Label>
-                  <Input
-                    id="material"
-                    name="material"
-                    value={currentProduct.material || ""}
-                    onChange={handleFormChange}
-                    className="col-span-3"
-                  />
+
+                {/* Images: Drag & Drop + chooser */}
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right">Images</Label>
+                  <div className="col-span-3 space-y-2">
+                    <div
+                      className={`rounded-md border border-dashed p-5 text-center transition ${
+                        dragOver ? "bg-muted/50 border-primary" : "bg-muted/20"
+                      }`}
+                      onDragOver={onDragOver}
+                      onDragLeave={onDragLeave}
+                      onDrop={onDrop}
+                    >
+                      <UploadCloud className="mx-auto mb-2 h-6 w-6" />
+                      <p className="text-xs">Drag & drop images here</p>
+                      <p className="text-xs text-muted-foreground">or</p>
+                      <div className="mt-2 flex items-center justify-center gap-2">
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={onPick}
+                        />
+                      </div>
+                      <p className="mt-2 text-[11px] text-muted-foreground">
+                        PNG/JPG/WEBP/GIF • up to ~5–10MB each
+                      </p>
+                    </div>
+
+                    {/* New picks */}
+                    {picked.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {picked.map((f, i) => {
+                          const url = URL.createObjectURL(f);
+                          return (
+                            <div
+                              key={`${f.name}-${i}`}
+                              className="relative rounded-md overflow-hidden border"
+                            >
+                              <img
+                                src={url}
+                                className="h-24 w-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removePicked(f)}
+                                className="absolute right-1 top-1 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-white"
+                                title="Remove"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Existing URLs */}
+                    {toStrArr(current.images).length > 0 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {toStrArr(current.images).map((img, i) => (
+                          <div
+                            key={i}
+                            className="aspect-square rounded-md overflow-hidden border"
+                          >
+                            <img
+                              src={img}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="occasion" className="text-right">
-                    Occasion
-                  </Label>
-                  <Input
-                    id="occasion"
-                    name="occasion"
-                    value={currentProduct.occasion || ""}
-                    onChange={handleFormChange}
-                    className="col-span-3"
-                  />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="images" className="text-right">
-                    Images
-                  </Label>
-                  <Input
-                    id="images"
-                    type="file"
-                    multiple
-                    onChange={handleImageChange}
-                    className="col-span-3"
-                  />
-                </div>
-                {/* --- MODIFICATION END --- */}
               </div>
+
               <DialogFooter>
                 <DialogClose asChild>
                   <Button type="button" variant="secondary">
                     Cancel
                   </Button>
                 </DialogClose>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Saving..." : "Save Product"}
+                <Button type="submit" disabled={saving}>
+                  {saving ? "Saving..." : "Save Product"}
                 </Button>
               </DialogFooter>
             </form>
@@ -438,23 +537,19 @@ const ProductManager: React.FC<ProductManagerProps> = ({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        open={isDeleteDialogOpen}
-        onOpenChange={setIsDeleteDialogOpen}
-      >
+      <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
-              product "{productToDelete?.name}".
+              product "{toDelete?.name}".
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmDelete}
+              onClick={confirmDelete}
               className="bg-destructive hover:bg-destructive/90"
             >
               Delete
@@ -464,6 +559,4 @@ const ProductManager: React.FC<ProductManagerProps> = ({
       </AlertDialog>
     </div>
   );
-};
-
-export default ProductManager;
+}

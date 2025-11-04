@@ -281,20 +281,7 @@ const AuthForm = () => {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="adminCheckbox"
-                    checked={formData.role === 'admin'}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        role: e.target.checked ? 'admin' : 'customer',
-                      }))
-                    }
-                  />
-                  <Label htmlFor="adminCheckbox">Create as Admin</Label>
-                </div>
+              
                 <Button
                   onClick={() => handleEmailAuth('signup', formData.role)}
                   className="w-full bg-rose-gold hover:bg-rose-gold/90"
