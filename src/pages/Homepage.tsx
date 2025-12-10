@@ -7,58 +7,36 @@ import { ArrowRight, Heart, ShoppingBag, Star } from "lucide-react";
 import { motion } from "framer-motion";
 import { useInView } from "react-intersection-observer";
 import type { Tables } from "@/integrations/supabase/types";
-import video1 from "@/assets/banda1.mp4";
-import video4 from "@/assets/banda2.mp4";
-import video2 from "@/assets/manmodel2.mp4";
-import video3 from "@/assets/model1.mp4";
 import { fetchFeaturedProducts } from "@/lib/utils";
-import p1 from "./assets/mdres.png";
-import p2 from "./assets/mtop (2).png";
-import p3 from "./assets/mbottom.png";
-import p4 from "./assets/ku.png";
-import p5 from "./assets/wwest.jpg";
-import p6 from "./assets/windi.png";
 
 type FeaturedProduct = Tables<"featuredProducts">;
 
 const categories = [
   {
-    name: "Dresses (Men)",
-    count: 2,
-    image: p1,
-    categoryUrl: "Dresses (Men)",
-  },
-  {
     name: "Top (Men)",
     count: 4,
-    image: p2,
+    image: "./assets/mtop (2).png",
     categoryUrl: "Top (Men)",
   },
   {
     name: "Bottoms (Men)",
     count: 0,
-    image: p3,
+    image: "./assets/mbottom.png",
     categoryUrl: "Bottoms (Men)",
   },
-  {
-    name: "Kurtis for Women",
-    Coming: "COMING SOON",
-    count: 0,
-    image: p4,
-    categoryUrl: "Kurtis for Women",
-  },
+
   {
     name: "Western (Women)",
     Coming: "COMING SOON",
     count: 0,
-    image: p5,
+    image: "./assets/wwest.jpg",
     categoryUrl: "Western (Women)",
   },
   {
     name: "Indian Dresses (Women)",
     Coming: "COMING SOON",
     count: 0,
-    image: p6,
+    image: "./assets/windi.png",
     categoryUrl: "Indian Dresses (Women)",
   },
 ];
@@ -89,7 +67,13 @@ const Homepage = () => {
   const [loading, setLoading] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  const videoList = [video1, video2, video3, video4];
+  const videoList = [
+    "assets/IMG_9737.MOV",
+    "./assets/banda1.mp4",
+    "./assets/banda2.mp4",
+    "./assets/banda2.mp4",
+    "./assets/banda2.mp4",
+  ];
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
 
   useEffect(() => {

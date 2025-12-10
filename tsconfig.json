@@ -17,6 +17,6 @@
     "noEmit": true,
     "strict": false
   },
-  "include": ["src"],
+  "include": ["src", "src/components/MobileNav.tsx"],
   "exclude": ["node_modules"]
 }

@@ -25,7 +25,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import QR from "./assets/WhatsApp Image 2025-07-25 at 21.23.09_9208ba4f.jpg";
 
 declare global {
   interface Window {
@@ -643,7 +642,7 @@ const CheckoutPage = () => {
                         Scan to Pay ₹{finalTotal.toLocaleString()}
                       </p>
                       <img
-                        src={QR}
+                        src="./assets/WhatsApp Image 2025-07-25 at 21.23.09_9208ba4f.jpg"
                         alt="UPI QR Code"
                         className="mx-auto my-4 rounded-md shadow-md"
                         width="180"

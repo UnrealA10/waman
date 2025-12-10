@@ -3,10 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Search, 
-  ShoppingBag, 
-  User, 
+import {
+  Search,
+  ShoppingBag,
+  User,
   Heart,
   Menu,
   X
@@ -48,9 +48,9 @@ const Header = () => {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3">
-            <img 
-              src={wamanHausLogo} 
-              alt="WAMAN HAUS" 
+            <img
+              src="./assets/waman-haus-logo.png"
+              alt="WAMAN HAUS"
               className="h-10 w-auto"
             />
             <div className="hidden md:flex flex-col">
@@ -114,8 +114,8 @@ const Header = () => {
             >
               <ShoppingBag className="h-5 w-5" />
               {totalItems > 0 && (
-                <Badge 
-                  variant="destructive" 
+                <Badge
+                  variant="destructive"
                   className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-gold text-deep-brown"
                 >
                   {totalItems}
@@ -193,29 +193,29 @@ const Header = () => {
 
                   {/* Mobile Navigation */}
                   <nav className="space-y-4">
-                    <Link 
-                      to="/products" 
+                    <Link
+                      to="/products"
                       className="block text-lg font-medium hover:text-gold transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
                       Shop
                     </Link>
-                    <Link 
-                      to="/products?category=new" 
+                    <Link
+                      to="/products?category=new"
                       className="block text-lg font-medium hover:text-gold transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
                       New Arrivals
                     </Link>
-                    <Link 
-                      to="/products?category=sale" 
+                    <Link
+                      to="/products?category=sale"
                       className="block text-lg font-medium hover:text-gold transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
                       Sale
                     </Link>
-                    <Link 
-                      to="/products?category=collections" 
+                    <Link
+                      to="/products?category=collections"
                       className="block text-lg font-medium hover:text-gold transition-colors"
                       onClick={() => setIsMenuOpen(false)}
                     >
@@ -227,28 +227,28 @@ const Header = () => {
                   <div className="pt-6 border-t border-border">
                     {user ? (
                       <div className="space-y-4">
-                        <Link 
-                          to="/profile" 
+                        <Link
+                          to="/profile"
                           className="block text-lg font-medium hover:text-gold transition-colors"
                           onClick={() => setIsMenuOpen(false)}
                         >
                           My Profile
                         </Link>
-                        <Link 
-                          to="/orders" 
+                        <Link
+                          to="/orders"
                           className="block text-lg font-medium hover:text-gold transition-colors"
                           onClick={() => setIsMenuOpen(false)}
                         >
                           My Orders
                         </Link>
-                        <Link 
-                          to="/wishlist" 
+                        <Link
+                          to="/wishlist"
                           className="block text-lg font-medium hover:text-gold transition-colors"
                           onClick={() => setIsMenuOpen(false)}
                         >
                           Wishlist
                         </Link>
-                        <button 
+                        <button
                           onClick={() => {
                             handleSignOut();
                             setIsMenuOpen(false);
@@ -259,8 +259,8 @@ const Header = () => {
                         </button>
                       </div>
                     ) : (
-                      <Link 
-                        to="/auth" 
+                      <Link
+                        to="/auth"
                         className="block text-lg font-medium hover:text-gold transition-colors"
                         onClick={() => setIsMenuOpen(false)}
                       >
